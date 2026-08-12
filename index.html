@@ -48,7 +48,17 @@ button:active{background:#4a4e5a;transform:scale(.98)}
 const C=document.getElementById("game"),ctx=C.getContext("2d");
 const COLS=10,ROWS=20;
 const colors=["","#31c7ef","#f7d51d","#b36cff","#48d35a","#ff5b5b","#4b8cff","#ff9f3f"];
-const shapes=[[[1,1,1,1]],[[2,2],[2,2]],[[0,3,0],[3,3,3]],[[0,4,4],[4,4,0]],[[5,5,0],[0,5,5]],[[6,0,0],[6,6,6]],[[0,0,7],[7,7,7]]];
+// すべて4x4の固定グリッドで管理します。
+// これにより回転時に行列サイズが変わって位置や形が崩れる問題を防ぎます。
+const shapes=[
+ [[1,1,1,1],[0,0,0,0],[0,0,0,0],[0,0,0,0]],
+ [[2,2,0,0],[2,2,0,0],[0,0,0,0],[0,0,0,0]],
+ [[0,3,0,0],[3,3,3,0],[0,0,0,0],[0,0,0,0]],
+ [[0,4,4,0],[4,4,0,0],[0,0,0,0],[0,0,0,0]],
+ [[5,5,0,0],[0,5,5,0],[0,0,0,0],[0,0,0,0]],
+ [[6,0,0,0],[6,6,6,0],[0,0,0,0],[0,0,0,0]],
+ [[0,0,7,0],[7,7,7,0],[0,0,0,0],[0,0,0,0]]
+];
 let board=[],piece=null,score=0,lines=0,level=1,running=false,paused=false,over=false,dropCounter=0,last=0;
 const $=id=>document.getElementById(id);
 function freshBoard(){return Array.from({length:ROWS},()=>Array(COLS).fill(0))}
@@ -61,20 +71,18 @@ function collide(p,dx=0,dy=0,s=p.shape){
 }
 function merge(){piece.shape.forEach((r,y)=>r.forEach((v,x)=>{if(v&&piece.y+y>=0)board[piece.y+y][piece.x+x]=v}))}
 function rotate(){
-  // 正しい90度時計回り回転。元の実装は「行数」を基準に
-  // 変換していたため、横長/縦長のブロックで一部のマスが
-  // 欠落し、ブロックが変形することがありました。
-  const h=piece.shape.length,w=piece.shape[0].length;
-  const s=Array.from({length:w},(_,x)=>Array.from({length:h},(_,y)=>piece.shape[h-1-y][x]));
-  if(!collide(piece,0,0,s)){
-    piece.shape=s;
-  }else{
-    // 壁際でも可能な範囲で回転できるよう簡易ウォールキック
-    for(const dx of [-1,1,-2,2]){
-      if(!collide(piece,dx,0,s)){piece.x+=dx;piece.shape=s;return}
+  // 4x4固定グリッドを時計回りに90度回転。4マスを必ず保持します。
+  const s=Array.from({length:4},(_,y)=>Array.from({length:4},(_,x)=>piece.shape[3-x][y]));
+  // まずその場で試し、壁際では1〜2マスだけ横へずらして試します。
+  for(const dx of [0,-1,1,-2,2]){
+    if(!collide(piece,dx,0,s)){
+      piece.x+=dx;
+      piece.shape=s;
+      return;
     }
   }
 }
+
 function clearLines(){
  let n=0;board=board.filter(r=>{if(r.every(Boolean)){n++;return false}return true});
  while(board.length<ROWS)board.unshift(Array(COLS).fill(0));
