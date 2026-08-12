@@ -60,7 +60,21 @@ function collide(p,dx=0,dy=0,s=p.shape){
  }return false
 }
 function merge(){piece.shape.forEach((r,y)=>r.forEach((v,x)=>{if(v&&piece.y+y>=0)board[piece.y+y][piece.x+x]=v}))}
-function rotate(){let s=piece.shape.map((_,i)=>piece.shape.map(r=>r[i]).reverse());if(!collide(piece,0,0,s))piece.shape=s}
+function rotate(){
+  // 正しい90度時計回り回転。元の実装は「行数」を基準に
+  // 変換していたため、横長/縦長のブロックで一部のマスが
+  // 欠落し、ブロックが変形することがありました。
+  const h=piece.shape.length,w=piece.shape[0].length;
+  const s=Array.from({length:w},(_,x)=>Array.from({length:h},(_,y)=>piece.shape[h-1-y][x]));
+  if(!collide(piece,0,0,s)){
+    piece.shape=s;
+  }else{
+    // 壁際でも可能な範囲で回転できるよう簡易ウォールキック
+    for(const dx of [-1,1,-2,2]){
+      if(!collide(piece,dx,0,s)){piece.x+=dx;piece.shape=s;return}
+    }
+  }
+}
 function clearLines(){
  let n=0;board=board.filter(r=>{if(r.every(Boolean)){n++;return false}return true});
  while(board.length<ROWS)board.unshift(Array(COLS).fill(0));
