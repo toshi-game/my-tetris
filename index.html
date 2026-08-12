@@ -1,133 +1,22 @@
-<!doctype html>
-<html lang="ja">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover"><meta name="theme-color" content="#101114"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"><meta name="apple-mobile-web-app-title" content="テトリス"><link rel="manifest" href="manifest.webmanifest">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>iPhone向け ミニ・テトリス</title>
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="theme-color" content="#0b0d12"><link rel="manifest" href="manifest.webmanifest"><title>ミニ・テトリス</title>
 <style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#101114;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif;touch-action:manipulation}
-body{display:flex;justify-content:center}
-#app{width:100%;height:100dvh;display:flex;flex-direction:column;align-items:center;padding:max(6px,env(safe-area-inset-top)) 8px max(6px,env(safe-area-inset-bottom))}
-h1{font-size:19px;margin:2px 0 3px;line-height:1.1}
-#hud{font-size:13px;height:20px;line-height:20px;flex:none}
-#game{display:block;background:#080a12;border:2px solid #666;border-radius:5px;touch-action:none;flex:none}
-.controls{width:min(290px,92vw);display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:7px;flex:none}
-button{height:43px;border:0;border-radius:9px;background:#30333a;color:#fff;font-size:21px;font-weight:bold;touch-action:manipulation}
-button:active{background:#555}
-#new{grid-column:1/4;height:37px;font-size:14px}
-small{font-size:10px;color:#999;line-height:1.2;margin-top:4px;flex:none}
-</style>
-</head>
-<body>
-<div id="app">
-<h1>ミニ・テトリス</h1>
-<div id="hud">スコア 0　ライン 0　レベル 1</div>
-<canvas id="game"></canvas>
-<div class="controls">
-<button id="L">←</button><button id="R">↻</button><button id="RR">→</button>
-<button id="D">↓</button><button id="HD">⤓</button><button id="P">Ⅱ</button>
-<button id="new">スタート / リスタート</button>
-</div>
-<small>タップ：回転　左右スワイプ：移動　下スワイプ：一気に落下</small>
-</div>
-
+*{box-sizing:border-box}html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#0b0d12;color:#fff;font-family:-apple-system,BlinkMacSystemFont,sans-serif}.app{height:100dvh;min-height:100svh;display:flex;flex-direction:column;align-items:center;padding:6px 12px 8px;gap:5px}h1{margin:0;font-size:24px}.info{font-size:15px}.area{flex:1;min-height:0;width:100%;display:flex;justify-content:center;align-items:center}canvas{height:auto;max-height:100%;width:auto;aspect-ratio:1/2;background:#080a10;border:4px solid #666;border-radius:7px;display:block}.controls{width:min(100%,600px);display:grid;grid-template-columns:repeat(3,1fr);gap:7px;flex:none}button{height:55px;border:0;border-radius:14px;background:#30333b;color:#fff;font-size:29px;font-weight:700}button:active{transform:scale(.97)}.start{width:min(100%,600px);height:48px;font-size:18px;flex:none}.help{font-size:11px;opacity:.6}@media(max-height:700px){h1{font-size:19px}.info{font-size:13px}button{height:43px;font-size:24px}.start{height:39px;font-size:15px}.help{display:none}}
+</style></head><body><div class="app"><h1>ミニ・テトリス</h1><div class="info">スコア <span id="s">0</span>　ライン <span id="l">0</span>　レベル <span id="v">1</span></div><div class="area"><canvas id="c" width="300" height="600"></canvas></div><div class="controls"><button onclick="mv(-1)">←</button><button onclick="rot()">↻</button><button onclick="mv(1)">→</button><button onclick="soft()">↓</button><button onclick="hard()">⇩</button><button onclick="pause()">Ⅱ</button></div><button class="start" onclick="start()">スタート / リスタート</button><div class="help">← → 移動　↑ 回転　↓ 落下　Space 一気に落とす</div></div>
 <script>
-(() => {
-const canvas=document.getElementById('game'),ctx=canvas.getContext('2d');
-const W=10,H=20;
-const colors=['#00d9ff','#4b7bec','#ff9f43','#ffe66d','#2ed573','#a55eea','#ff4757'];
-const SHAPES=[
- [[1,1,1,1]],[[1,0,0],[1,1,1]],[[0,0,1],[1,1,1]],
- [[1,1],[1,1]],[[0,1,1],[1,1,0]],[[0,1,0],[1,1,1]],[[1,1,0],[0,1,1]]
-];
-let S=28,board=[],piece=null,score=0,lines=0,level=1,playing=false,paused=false,last=0,fall=0;
-
-function resize(){
- const app=document.getElementById('app');
- const h=app.clientHeight;
- const controls=document.querySelector('.controls').getBoundingClientRect();
- const hud=document.getElementById('hud').getBoundingClientRect();
- const title=document.querySelector('h1').getBoundingClientRect();
- const small=document.querySelector('small').getBoundingClientRect();
- const available=h-(controls.height+hud.height+title.height+small.height+28);
- const width=Math.min(window.innerWidth-16,300);
- S=Math.max(18,Math.floor(Math.min(width/10,available/20)));
- canvas.width=S*W;canvas.height=S*H;
- canvas.style.width=(S*W)+'px';canvas.style.height=(S*H)+'px';
- draw();
-}
-function reset(){board=Array.from({length:H},()=>Array(W).fill(-1));score=0;lines=0;level=1;piece=makePiece();playing=true;paused=false;fall=0;draw()}
-function makePiece(){const id=Math.floor(Math.random()*SHAPES.length),shape=SHAPES[id].map(r=>r.slice());return{id,shape,x:Math.floor((W-shape[0].length)/2),y:0}}
-function collision(dx,dy,shape=piece.shape){
- for(let y=0;y<shape.length;y++)for(let x=0;x<shape[y].length;x++)if(shape[y][x]){
-  const nx=piece.x+x+dx,ny=piece.y+y+dy;
-  if(nx<0||nx>=W||ny>=H)return true;
-  if(ny>=0&&board[ny][nx]!==-1)return true;
- }return false;
-}
-function move(dx){if(!playing||paused)return;if(!collision(dx,0))piece.x+=dx;draw()}
-function rotate(){
- if(!playing||paused)return;
- const a=piece.shape,h=a.length,w=a[0].length,b=Array.from({length:w},()=>Array(h).fill(0));
- for(let y=0;y<h;y++)for(let x=0;x<w;x++)b[x][h-1-y]=a[y][x];
- if(!collision(0,0,b))piece.shape=b;draw()
-}
-function soft(){if(!playing||paused)return;if(!collision(0,1)){piece.y++;score++}else lock();draw()}
-function hard(){if(!playing||paused)return;let n=0;while(!collision(0,1)){piece.y++;n++}score+=n*2;lock();draw()}
-function lock(){
- piece.shape.forEach((r,y)=>r.forEach((v,x)=>{if(v)board[piece.y+y][piece.x+x]=piece.id}));
- let n=0;
- for(let y=H-1;y>=0;y--)if(board[y].every(v=>v!==-1)){board.splice(y,1);board.unshift(Array(W).fill(-1));n++;y++}
- if(n){lines+=n;score+=[0,100,300,500,800][n]*level;level=1+Math.floor(lines/10)}
- piece=makePiece();
- if(collision(0,0)){playing=false;setTimeout(()=>alert('ゲームオーバー！\nスコア: '+score),40)}
-}
-function pauseGame(){if(playing){paused=!paused;draw()}}
-function drawCell(x,y,id){ctx.fillStyle=colors[id];ctx.fillRect(x*S+1,y*S+1,S-2,S-2)}
-function draw(){
- ctx.clearRect(0,0,canvas.width,canvas.height);
- ctx.strokeStyle='#171b2c';
- for(let x=0;x<=W;x++){ctx.beginPath();ctx.moveTo(x*S,0);ctx.lineTo(x*S,H*S);ctx.stroke()}
- for(let y=0;y<=H;y++){ctx.beginPath();ctx.moveTo(0,y*S);ctx.lineTo(W*S,y*S);ctx.stroke()}
- for(let y=0;y<H;y++)for(let x=0;x<W;x++)if(board[y][x]!==-1)drawCell(x,y,board[y][x]);
- if(piece)piece.shape.forEach((r,y)=>r.forEach((v,x)=>{if(v)drawCell(piece.x+x,piece.y+y,piece.id)}));
- document.getElementById('hud').textContent=`スコア ${score}　ライン ${lines}　レベル ${level}`;
-}
-function frame(t){
- if(!last)last=t;const dt=t-last;last=t;
- if(playing&&!paused){fall+=dt;const speed=Math.max(100,800-(level-1)*60);if(fall>=speed){soft();fall=0}}
- requestAnimationFrame(frame);
-}
-document.getElementById('L').onclick=()=>move(-1);
-document.getElementById('RR').onclick=()=>move(1);
-document.getElementById('R').onclick=rotate;
-document.getElementById('D').onclick=soft;
-document.getElementById('HD').onclick=hard;
-document.getElementById('P').onclick=pauseGame;
-document.getElementById('new').onclick=reset;
-
-document.addEventListener('keydown',e=>{
- if(e.key==='ArrowLeft')move(-1);else if(e.key==='ArrowRight')move(1);
- else if(e.key==='ArrowUp')rotate();else if(e.key==='ArrowDown')soft();
- else if(e.code==='Space')hard();else if(e.key.toLowerCase()==='p')pauseGame();
-});
-let sx=0,sy=0;
-canvas.addEventListener('touchstart',e=>{const t=e.changedTouches[0];sx=t.clientX;sy=t.clientY},{passive:true});
-canvas.addEventListener('touchend',e=>{
- const t=e.changedTouches[0],dx=t.clientX-sx,dy=t.clientY-sy;
- if(Math.abs(dx)<20&&Math.abs(dy)<20)rotate();
- else if(Math.abs(dx)>Math.abs(dy))move(dx>0?1:-1);
- else if(dy>25)hard();else soft();
-},{passive:true});
-
-window.addEventListener('resize',resize);
-window.addEventListener('orientationchange',()=>setTimeout(resize,150));
-board=Array.from({length:H},()=>Array(W).fill(-1));
-resize();requestAnimationFrame(frame);
-})();
-</script>
-<script>if ("serviceWorker" in navigator) window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));</script>
-</body>
-</html>
+const C=document.getElementById('c'),x=C.getContext('2d'),W=10,H=20,N=30,col=['','#4dc9ff','#ffd43b','#a66cff','#ff5b5b','#4ee38a','#ff9f43','#5c7cfa'],sh=[[[1,1,1,1]],[[2,2],[2,2]],[[0,3,0],[3,3,3]],[[4,0,0],[4,4,4]],[[0,5,5],[5,5,0]],[[0,0,6],[6,6,6]],[[7,7,0],[0,7,7]]];let b,p,sc=0,li=0,lv=1,run=0,pa=0,t=0,last=0;
+function start(){b=Array.from({length:H},()=>Array(W).fill(0));sc=li=0;lv=1;info();newp();pa=0;run=1;last=performance.now();requestAnimationFrame(loop)}
+function newp(){let m=sh[Math.random()*sh.length|0];p={m:m.map(r=>r.slice()),x:(W-m[0].length)/2|0,y:0};if(hit(p.m,p.x,p.y)){run=0;alert('ゲームオーバー！')}}
+function hit(m,X,Y){for(let r=0;r<m.length;r++)for(let q=0;q<m[r].length;q++)if(m[r][q]){let a=X+q,z=Y+r;if(a<0||a>=W||z>=H||(z>=0&&b[z][a]))return 1}return 0}
+function mv(d){if(run&&!pa&&!hit(p.m,p.x+d,p.y))p.x+=d}
+function soft(){if(!run||pa)return;if(!hit(p.m,p.x,p.y+1))p.y++;else merge();t=0}
+function hard(){if(!run||pa)return;while(!hit(p.m,p.x,p.y+1))p.y++;merge();t=0}
+function rot(){if(!run||pa)return;let m=p.m,h=m.length,w=m[0].length,n=Array.from({length:w},(_,r)=>Array.from({length:h},(_,q)=>m[h-1-q][r]));for(let d of [0,-1,1,-2,2])if(!hit(n,p.x+d,p.y)){p.m=n;p.x+=d;return}}
+function merge(){p.m.forEach((r,R)=>r.forEach((v,q)=>{if(v)b[p.y+R][p.x+q]=v}));let n=0;for(let r=H-1;r>=0;r--)if(b[r].every(Boolean)){b.splice(r,1);b.unshift(Array(W).fill(0));n++;r++}if(n){li+=n;sc+=[0,100,300,500,800][n]*lv;lv=1+li/10|0;info()}newp()}
+function info(){s.textContent=sc;l.textContent=li;v.textContent=lv}
+function draw(){x.clearRect(0,0,300,600);x.strokeStyle='#111625';for(let i=0;i<=W;i++){x.beginPath();x.moveTo(i*N,0);x.lineTo(i*N,600);x.stroke()}for(let i=0;i<=H;i++){x.beginPath();x.moveTo(0,i*N);x.lineTo(300,i*N);x.stroke()}if(b)b.forEach((r,R)=>r.forEach((v,q)=>v&&cell(q,R,v)));if(p)p.m.forEach((r,R)=>r.forEach((v,q)=>v&&cell(p.x+q,p.y+R,v)))}
+function cell(a,z,v){x.fillStyle=col[v];x.fillRect(a*N+1,z*N+1,N-2,N-2)}
+function loop(now){if(!run){draw();return}let dt=now-last;last=now;if(!pa){t+=dt;if(t>=Math.max(100,700-(lv-1)*55))soft()}draw();requestAnimationFrame(loop)}
+function pause(){if(run){pa=!pa;event.currentTarget.textContent=pa?'▶':'Ⅱ'}}
+document.onkeydown=e=>{if(e.key==='ArrowLeft')mv(-1);if(e.key==='ArrowRight')mv(1);if(e.key==='ArrowDown')soft();if(e.key==='ArrowUp')rot();if(e.code==='Space'){e.preventDefault();hard()}if(e.key.toLowerCase()==='p')pause()};
+b=Array.from({length:H},()=>Array(W).fill(0));draw();info();
+</script></body></html>
